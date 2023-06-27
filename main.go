@@ -13,16 +13,15 @@ import (
 )
 
 var (
-	// Version (set by compiler) is the version of program
-	Version = "undefined"
-	// BuildTime (set by compiler) is the program build time in '+%Y-%m-%dT%H:%M:%SZ' format
-	BuildTime = "undefined"
-	// GitHash (set by compiler) is the git commit hash of source tree
-	GitHash = "undefined"
+	// Program metadata set by the compiler
+	Version = "undefined"   // Program's version
+	BuildTime = "undefined" // Build time of the program
+	GitHash = "undefined"   // Git commit hash of the source tree
 )
 
+// Entry point of the program
 func main() {
-	if err := run(); err != nil {
+	if err := run(); err != nil {  
 		_, _ = fmt.Fprintf(os.Stderr, "error: %v\n", err)
 		var usageErr usageError
 		if errors.As(err, &usageErr) {
@@ -32,55 +31,63 @@ func main() {
 	}
 }
 
+// usageError type for incorrect usage of command line arguments
 type usageError string
 
+// Implementing Error method for usageError to satisfy the error interface
 func (u usageError) Error() string {
 	return string(u)
 }
 
+// The run function orchestrates the entire workflow of the program
 func run() error {
-	cfg, err := parseArgs()
+	cfg, err := parseArgs()  
 	if err != nil {
 		return err
 	}
 
-	card, err := parseProxMark3JSONFile(cfg.InputJSONFile)
+	card, err := parseProxMark3JSONFile(cfg.InputJSONFile)  
 	if err != nil {
 		return err
 	}
 
-	return writeNFCFile(cfg.OutputNFCFile, card)
+	return writeNFCFile(cfg.OutputNFCFile, card)  
 }
 
+// Struct that holds names of input and output files
 type config struct {
 	InputJSONFile string
 	OutputNFCFile string
 }
 
+// Function to parse command line arguments and return a config struct
 func parseArgs() (*config, error) {
 	var cfg config
 	flag.StringVar(&cfg.InputJSONFile, "i", "", "input Proxmark3 dump file in JSON format")
 	flag.StringVar(&cfg.OutputNFCFile, "o", "", "output Flipper file in NFC format")
+
 	defaultUsage := flag.Usage
 	flag.Usage = func() {
 		defaultUsage()
 		_, _ = fmt.Fprintf(flag.CommandLine.Output(), "Version: %s\tBuildTime: %v\tGitHash: %s\n", Version, BuildTime, GitHash)
 	}
-	flag.Parse()
+	flag.Parse()  
 
 	if cfg.InputJSONFile == "" {
 		return nil, usageError("please provide input Proxmark3 dump file in JSON format")
 	}
 
 	if cfg.OutputNFCFile == "" {
-		return nil, usageError("please provide input Proxmark3 dump file in JSON format")
+		return nil, usageError("please provide output Flipper file in NFC format")
 	}
 
 	return &cfg, nil
 }
 
+// Type for a slice of bytes, which is used to represent hexadecimal data
 type hexData []byte
 
+// String method for hexData type to print hexadecimal data
 func (h hexData) String() string {
 	var sb strings.Builder
 
@@ -95,6 +102,7 @@ func (h hexData) String() string {
 	return sb.String()
 }
 
+// Struct representing the data structure of a Mifare card
 type mifareCard struct {
 	UID    hexData
 	ATQA   hexData
@@ -102,6 +110,7 @@ type mifareCard struct {
 	Blocks []hexData
 }
 
+// Function that reads a Proxmark3 JSON dump file and returns a mifareCard struct
 func parseProxMark3JSONFile(fileName string) (*mifareCard, error) {
 	jsonFile, err := os.Open(fileName)
 	if err != nil {
@@ -109,10 +118,11 @@ func parseProxMark3JSONFile(fileName string) (*mifareCard, error) {
 	}
 	defer jsonFile.Close()
 
-	return parseProxmark3JSON(jsonFile)
+	return parseProxMark3JSON(jsonFile)
 }
 
-func parseProxmark3JSON(r io.Reader) (*mifareCard, error) {
+// Function that parses the Proxmark3 JSON data and returns a mifareCard struct
+func parseProxMark3JSON(r io.Reader) (*mifareCard, error) {
 	var proxmark3JSON struct {
 		Created  string `json:"Created"`
 		FileType string `json:"FileType"`
@@ -163,7 +173,6 @@ func parseProxmark3JSON(r io.Reader) (*mifareCard, error) {
 		if err != nil {
 			return nil, fmt.Errorf("cannot parse block %d data: %w", i, err)
 		}
-		// TODO: check block length
 		blocks[i] = bs
 	}
 
@@ -175,6 +184,7 @@ func parseProxmark3JSON(r io.Reader) (*mifareCard, error) {
 	}, nil
 }
 
+// Function that decodes hexadecimal data from a string and returns it as a hexData type
 func decodeHexData(hexStr string) (bs hexData, err error) {
 	bs, err = hex.DecodeString(hexStr)
 	if err != nil {
@@ -183,6 +193,7 @@ func decodeHexData(hexStr string) (bs hexData, err error) {
 	return
 }
 
+// Function that creates an NFC file and writes Mifare card data to it
 func writeNFCFile(fileName string, c *mifareCard) error {
 	nfcFile, err := os.Create(fileName)
 	if err != nil {
@@ -193,6 +204,7 @@ func writeNFCFile(fileName string, c *mifareCard) error {
 	return writeNFC(nfcFile, c)
 }
 
+// Function that writes Mifare card data to a writer in NFC format
 func writeNFC(w io.Writer, c *mifareCard) error {
 	_, err := fmt.Fprintln(w, `Filetype: Flipper NFC device
 Version: 2
@@ -221,3 +233,4 @@ Device type: Mifare Classic
 
 	return err
 }
+
